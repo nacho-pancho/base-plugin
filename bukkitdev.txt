@@ -1,0 +1,236 @@
+BUKKIT DEVELOPMENT CHEAT SHEET
+
+This is not an introduction to plugin development.
+This is a quick reference for doing stuff within plugins using the Bukkit API.
+It does contain some tips too.
+
+
+0   DEVELOPMENT
+
+Java 7 should be used. Some plugins depend on it.
+It is a good idea to use Maven for building the plugin JARs.
+
+Dependencies:
+
+Projects should include craftbukkit-*-api.jar in their classpath. This is obtained when compiling CraftBukkit/Spigot using BuildTools 
+
+java -jar BuildTools.jar (and wait a while)
+
+1  PLUGIN BASICS
+
+1.1 LIFE CYCLE
+
+The main plugin class must extend org.bukkit.plugin.java.JavaPlugin
+and implement
+
+void onLoad()
+void onEnable()
+void onDisable()
+there is no onDestroy()
+
+1.2 PLUGIN CONTEXT
+
+The context of the plugin (the running server, etc.) can be accessed through JavaPlugin methods. Some basic ones:
+
+org.bukkit.Server getServer() - running server
+org.bukkit.plugin.PluginManager getPluginManager() - plugin management stuff
+org.bukkit.plugin.PluginDescriptionFile getDescription() - get plugin name, version, etc.
+
+
+2 EVENT BASICS
+
+Events generated during the game are broadcasted to all the (currently) registered
+"event listeners". These are instances of classes implementing the org.bukkit.event.Listener interface. Usually, they are registered with the plugin
+during onEnable() like this:
+
+
+org.bukkit.plugin.PluginManager pm = getServer().getPluginManager();
+pm.registerEvents(new BlockListener(this), this);
+pm.registerEvents(new PlayerListener(this), this);
+
+
+In order for a given class to be able to handle events, it must implement org.bukkit.event.Listener and one or more methods which adhere to the following rules:
+
+a) annotated with the @EventHandler tag (org.bukkit.event.EventHandler); this tag may include a priority from the org.bukkit.event.EventPriority enum
+b) the method must have a single  argument corresponding to the type of event being handled
+c) the method must be public and return void
+
+EXAMPLE
+
+DoorListener.java:
+
+import org.bukkit.event.*
+
+class DoorListener extends Listener {
+  Plugin plugin;
+    
+  DoorListener(Plugin p) { this.plugin = p; }
+  
+  @EventListener(priority = EventPriority.HIGH)
+  public void onDoorOpen(org.bukkit.event.player.PlayerInteractEvent event) {
+  }
+}
+
+Plugin.java:
+
+public class Plugin extends JavaPlugin {
+
+  void onEnable() {
+    org.bukkit.plugin.PluginManager pm = getServer().getPluginManager();
+    pm.registerEvents(new DoorListener(this), this);
+  }
+}
+
+2.2 EVENT DATA
+
+Events contain useful context information which usually depend on its type.
+Things like the Player participating in the event, the location of the event,
+etc. Check with the specific event you are going to listen to see what you can
+query from it.
+
+
+3 ITEMS
+
+All the different available "things" in Minecraft are listed in the enum org.bukkit.Material enum. These include "blocks" and "items" indistinctively. Unfortunatelly, one cannot add custom things.
+
+Things are created in stacks (independently of whether they are "stackable" or not) through
+the org.bukkit.inventory.ItemStack class. For example, to create 15 arrows:
+
+ItemStack stuff = new ItemStack(Material.ARROW, 15)
+
+3.1 DATA ASSOCIATED TO AN ITEM
+
+ItemStack represents a generic item. The actual behaviour of specific types of items (doors, rails, etc.) is stored in a org.bukkit.material.MaterialData subclass (ex. Door, Rail, Dye). For example, if you create a Door through
+
+ItemStack door = new ItemStack(Material.DOOR)
+
+you can set and get the specific state of that door through the org.bukkit.material.Door class. For example, if you want to see where a given door is facing at (specified as a  enum org.bukkit.block.BlockFace instance), you do:
+
+Door doorData = (Door) door.getData();
+BlockFace facing = doorData.getFacing();
+
+3.2 MORE (META) DATA
+
+There exists another mechanism (not clear to me why) for storing more data associated to 
+certain types of items or blocks which is represented by the class ItemMeta.
+Some of the things ItemMeta stores are:
+- enchantments applied to an item
+- display name (the name with which you "baptize" some item in an Anvil)
+- lore (extended text associated to an item, for example a book)
+- flags (ItemFlag instances)
+
+ItemMeta moreData = someBook.getItemMeta();
+BookMeta bookData = (BookMeta) moreData;
+List<String> lore =  bookData.getLore();
+
+4 CRAFTING
+
+Crafting is done through recipes. There are "shaped" (org.bukkit.inventory.ShapedRecipe) and "shapeless" (ShapelessRecipe) recipes.
+The most common is ShapedRecipe.
+It is instantiated using the TARGET object to be created as its sole argument:
+
+ItemStack arrows = new ItemStack(Material.ARROW,4);
+ShapedRecipe arrowRecipe = new ShapedRecipe(arrows);
+
+Then, the shape of the recipe (the 3x3 drawing) is defined in TWO stages.
+First, the general "shape" is defined using the ShapedRecipe's shape method.
+This method accepts one, two or three String instances as arguments, corresponding
+to a one, two or three rows recipe.
+Each row is a three charcter String where each distinct character corresponds to a given ingredient, and a space means "nothing there".
+
+String r1 = " a ";
+String r2 = " b ";
+String r3 = " c ";
+arrowRecipe.shape(r1,r2,r3);
+
+What ingredient the characters 'a', 'b' and 'c' indicate is defined using the setIngredient method:
+
+arrowRecipe.setIngredient('a',Material.FLINT);
+arrowRecipe.setIngredient('a',Material.STICK);
+arrowRecipe.setIngredient('a',Material.FEATHER);
+
+A custom recipe is then  registered with the server. 
+
+getServer().addRecipe(arrowRecipe)
+
+
+5 PERMISSIONS
+
+There is a basic permissions API which tells whether a given user has permission to
+do something. Permissions are organized in a hierarchical way, so that any given
+permission is specified through a node identifier of the form "foo.bar.somepermission",
+here "somepermission" is a leaf of the node "foo.bar", which in turn is a child node of the root node "foo".
+
+The basic API reduces to the method "hasPermission" in interface org.bukkit.permissions.Permissible, in particular implemented by the interface org.bukkit.entity.Player
+
+Which permissions are granted to who is delegated to a third-party plugin. There is no "default" method for specifying/loading/saving permissions!
+Popular ones are bPermissions and PAX (there are more). Each one uses a YAML file (with a custom syntax defined by the plugin). Choose one and see their corresponding documentation
+for configuring them.
+
+
+6 WORLD
+
+You can get an instance of the world that a given player is in by invoking getWorld()
+on a Player instance
+
+org.bukkit.World world = player.getWorld();
+
+7 LOCATION
+
+A location within a running Bukkit server is represented by an instance of org.bukkit.Location. It includes the World (org.bukkit.World), which in turn is identified  either by an UUID (java.util.UUID) or its name (e.g. "world_nether"), 
+the X,Y,Z coordinates and the orientation (pitch, yaw, roll)
+
+
+8 BLOCKS
+
+A block is represented by an instance of org.bukkit.block.Block. You can obtain
+the block occupying a given position by in a given world by invoking
+
+Block b = world.getBlockAt(x,y,z);
+
+Blocks are always "live" within a world (as opposed to items, which might be created and not exist in the world) and thus have a state. The common part of it includes power, temperature, humidity, light level, location and world where they are placed.
+
+Additional state variables specific to some types of blocks are stored in a BlockState instance, which is actually an interface to specific implementations:
+
+BlockState state = b.getState();
+
+For example, you can check the text in a Sign block by querying its associated BlockState:
+
+Sign signState = (Sign) b.getState(); // assuming the block is a sign!
+String[] text = signState.getLines();
+
+
+9 BROADCASTING MESSAGES
+
+getServer().broadcastMessage(String msg);
+
+Messages can contain escape sequences for adding color to the messages.
+These are defined as constants in  org.bukkit.ChatColor.
+
+10 HANDLING COMMANDS
+
+Commands are not handled as events. Instead, they are handled by a CommandExecutor instance, which can be the plugin itself,
+or a class implementing CommandExecutor.
+As with events, the handling methods must be annotated,  with the @Override annotation in this case.
+The signature is different, taking four arguments:
+
+
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.Command;
+
+@Override
+public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+  if (command.getName().equalsIgnoreCase("somecommand") {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+These handlers must be then registered, usually in the onEnable method of the main Plugin:
+onEnable() {
+  getCommand("somecommand").setExecutor(new MyExecutor(this));
+}
+
+Note that an executor is bound to a specific command, which must be listed beforehand in the plugin.yml file, in the commands section.
+

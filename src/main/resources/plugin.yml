@@ -1,0 +1,4 @@
+name: ChangeMe
+main: net.changeme.Plugin
+version: 0.1
+commands: info

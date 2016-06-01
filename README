@@ -1,0 +1,8 @@
+This is intended as a base project for creating a Bukkit plugin.
+
+It provides a fully functional plugin with some example functionallity, including
+handling events, commands, permisssions, crafting custom recipes, manipulating 
+the minecraft world and its basic elements such as locations, blocks, and their properties.
+
+Two methods for building the projects are provided: classic old fashioned GNU Make (Makefile), 
+and Maven (pom.xml).
